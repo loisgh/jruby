@@ -149,9 +149,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ProcessBuilder.Redirect;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+
+import static org.jruby.truffle.core.array.ArrayHelpers.getStore;
 
 @CoreClass("Kernel")
 public abstract class KernelNodes {
@@ -710,12 +714,21 @@ public abstract class KernelNodes {
 
         @TruffleBoundary
         private String[] buildCommandLine(Object command, Object[] args) {
-            final String[] commandLine = new String[1 + args.length];
-            commandLine[0] = command.toString();
-            for (int n = 0; n < args.length; n++) {
-                commandLine[1 + n] = args[n].toString();
+            final List<String> commandLine = new ArrayList<>(1 + args.length);
+            if (RubyGuards.isRubyArray(command)) {
+                final Object[] store = (Object[]) getStore((DynamicObject) command);
+                commandLine.add(store[0].toString());
+            } else {
+                commandLine.add(command.toString());
             }
-            return commandLine;
+            for (int n = 0; n < args.length; n++) {
+                if (n == args.length - 1 && RubyGuards.isRubyHash(args[n])) {
+                    break;
+                }
+                commandLine.add(args[n].toString());
+            }
+            final String[] result = new String[commandLine.size()];
+            return commandLine.toArray(result);
         }
 
         @TruffleBoundary
